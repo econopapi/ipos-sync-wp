@@ -2,14 +2,14 @@
 /**
  * Sincronización de categorías iPos <-> WooCommerce
  * 
- * @package Ocellaris_Child
+ * @since 1.0.0
  */
 
 if (!defined('ABSPATH')) {
     exit;
 }
 
-class Ocellaris_Category_Sync {
+class IPos_Category_Sync {
     
     private $ipos_api;
     private $category_map = array(); // iPos ID => WC ID
@@ -34,7 +34,7 @@ class Ocellaris_Category_Sync {
             );
         }
         
-        // Validar que $result['data'] es un array
+        // validar que 'data' existe y es un array
         $categories = isset($result['data']) ? $result['data'] : array();
         
         // Si no es array, probablemente sea un error
@@ -57,9 +57,9 @@ class Ocellaris_Category_Sync {
         $skipped = 0;
         $errors = array();
         
-        // Primero procesamos las categorías sin padre (top-level)
+        // procesamiento de categorías padre (sin parent) primero
         foreach ($categories as $category) {
-            // Validar que $category es un array
+            // validar que $category es un array
             if (!is_array($category)) {
                 $errors[] = 'Categoría inválida recibida del API';
                 continue;
@@ -71,7 +71,7 @@ class Ocellaris_Category_Sync {
             }
         }
         
-        // Luego procesamos las categorías con padre
+        // procesamiento de categorías hijo (con parent) después
         foreach ($categories as $category) {
             if (!is_array($category)) {
                 continue;
@@ -83,7 +83,7 @@ class Ocellaris_Category_Sync {
             }
         }
         
-        // Guardar el mapeo actualizado
+        // guardar mapeo actualizado
         $this->save_category_map();
         
         return array(
@@ -94,13 +94,14 @@ class Ocellaris_Category_Sync {
             'skipped' => $skipped,
             'errors' => $errors,
             'message' => sprintf(
-                '✅ Sincronización completa! Creadas: %d | Actualizadas: %d | Omitidas: %d',
+                '✅ Sincronización de categorías completa! Creadas: %d | Actualizadas: %d | Omitidas: %d',
                 $created,
                 $updated,
                 $skipped
             )
         );
     }
+
     
     /**
      * Sincronizar una categoría individual
@@ -186,12 +187,13 @@ class Ocellaris_Category_Sync {
             );
         }
     }
+
     
     /**
      * Obtener el ID de WooCommerce para una categoría de iPos
      */
     private function get_wc_category_id($ipos_id) {
-        // Primero buscar en el mapa en memoria
+        // primero se busca en mapeo de categorías
         if (isset($this->category_map[$ipos_id])) {
             $term = get_term($this->category_map[$ipos_id], 'product_cat');
             if (!is_wp_error($term) && $term) {
@@ -201,12 +203,12 @@ class Ocellaris_Category_Sync {
             }
         }
         
-        // Verificar que la taxonomía existe
+        // verificar que la taxonomía existe
         if (!taxonomy_exists('product_cat')) {
             return false;
         }
         
-        // Buscar en la base de datos con validación
+        // buscar en la base de datos con validación
         $terms = get_terms(array(
             'taxonomy' => 'product_cat',
             'hide_empty' => false,
@@ -233,6 +235,7 @@ class Ocellaris_Category_Sync {
         
         return false;
     }
+
     
     /**
      * Procesar resultado de sincronización
@@ -254,12 +257,13 @@ class Ocellaris_Category_Sync {
             $errors[] = $result['name'] . ': ' . $result['error'];
         }
     }
+
     
     /**
      * Cargar el mapa de categorías guardado
      */
     private function load_category_map() {
-        $saved_map = get_option('ocellaris_ipos_category_map', array());
+        $saved_map = get_option('ipos_sync_category_map', array());
         if (is_array($saved_map)) {
             $this->category_map = $saved_map;
         }
@@ -269,6 +273,6 @@ class Ocellaris_Category_Sync {
      * Guardar el mapa de categorías
      */
     private function save_category_map() {
-        update_option('ocellaris_ipos_category_map', $this->category_map);
+        update_option('ipos_sync_category_map', $this->category_map);
     }
 }

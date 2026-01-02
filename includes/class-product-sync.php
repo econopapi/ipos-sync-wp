@@ -991,7 +991,7 @@ class Ocellaris_Product_Sync {
      * Cargar mapa de categorías
      */
     private function load_category_map() {
-        $saved_map = get_option('ocellaris_ipos_category_map', array());
+        $saved_map = get_option('ipos_sync_category_map', array());
         if (is_array($saved_map)) {
             $this->category_map = $saved_map;
         }

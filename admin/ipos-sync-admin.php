@@ -416,7 +416,7 @@ class IPos_Sync_Admin {
 
         // Categorías
         $wc_categories        = wp_count_terms('product_cat');
-        $category_map         = get_option('ocellaris_ipos_category_map', array());
+        $category_map         = get_option('ipos_sync_category_map', array());
         $mapped_categories    = is_array($category_map) ? count($category_map) : 0;
         $mapped_cat_percent   = ($wc_categories > 0) ? round(($mapped_categories / $wc_categories) * 100, 1) : 0;
 
@@ -550,7 +550,7 @@ class IPos_Sync_Admin {
         require_once IPOS_SYNC_WP_PLUGIN_DIR . '/includes/class-ipos-api.php';
         require_once IPOS_SYNC_WP_PLUGIN_DIR . '/includes/class-category-sync.php';
         
-        $sync = new Ocellaris_Category_Sync();
+        $sync = new IPos_Category_Sync();
         $result = $sync->sync_all_categories();
         
         if ($result['success']) {
@@ -561,36 +561,11 @@ class IPos_Sync_Admin {
             wp_send_json_error($result);
         }
     }
+
     
     /**
      * AJAX: Limpiar caché y mapeo
      */
-    // public function ajax_clear_cache() {
-    //     check_ajax_referer('ipos_sync_nonce', 'nonce');
-        
-    //     if (!current_user_can('manage_options')) {
-    //         wp_send_json_error('No tenés permisos para hacer esto.');
-    //     }
-        
-    //     // Eliminar opciones guardadas
-    //     delete_option('ocellaris_ipos_category_map');
-    //     delete_option('ocellaris_ipos_product_map');
-    //     delete_transient('ocellaris_ipos_categories_count');
-        
-    //     // Limpiar sesión y caché de productos
-    //     delete_transient('ocellaris_sync_session_id');
-        
-    //     // Limpiar todas las sesiones de caché de productos
-    //     global $wpdb;
-    //     $wpdb->query(
-    //         "DELETE FROM {$wpdb->options} 
-    //         WHERE option_name LIKE '_transient_ocellaris_ipos_products_cache_%' 
-    //         OR option_name LIKE '_transient_timeout_ocellaris_ipos_products_cache_%'"
-    //     );
-        
-    //     wp_send_json_success('✅ Caché limpiado correctamente. Puedes iniciar una nueva sincronización.');
-    // }
-
     public function ajax_clear_cache() {
         check_ajax_referer('ipos_sync_nonce', 'nonce');
         
@@ -602,7 +577,7 @@ class IPos_Sync_Admin {
         $api = new IPos_API();
         
         // Eliminar opciones guardadas
-        delete_option('ocellaris_ipos_category_map');
+        delete_option('ipos_sync_category_map');
         delete_option('ocellaris_ipos_product_map');
         delete_transient('ocellaris_ipos_categories_count');
         
