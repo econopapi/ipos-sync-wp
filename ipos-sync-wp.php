@@ -25,21 +25,6 @@ require_once IPOS_SYNC_WP_PLUGIN_DIR . 'includes/class-product-sync.php';
 require_once IPOS_SYNC_WP_PLUGIN_DIR . 'includes/class-stock-sync.php';
 require_once IPOS_SYNC_WP_PLUGIN_DIR . 'includes/class-webhook-handler.php';
 
-// verificar WooCommerce al cargar el plugin
-add_action('admin_init', 'ipos_sync_wp_check_woocommerce');
-
-function ipos_sync_wp_check_woocommerce() {
-    if(!class_exists('WooCommerce')){
-        add_action('admin_notices', 'ipos_sync_wp_woocommerce_missing_notice');
-        return false;
-    }
-    return true;
-}
-
-function ipos_sync_wp_woocommerce_missing_notice() {
-    echo '<div class="error"><p><strong>iPos Sync WP</strong> requiere <a href="https://wordpress.org/plugins/woocommerce/" target="_blank">WooCommerce</a> para funcionar correctamente. Por favor, instala y activa WooCommerce.</p></div>';
-}
-
 // instancia de admin ui
 if(is_admin()){
     require_once IPOS_SYNC_WP_PLUGIN_DIR . 'admin/ipos-sync-admin.php';
