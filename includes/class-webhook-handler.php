@@ -15,7 +15,7 @@ class IPos_Sync_Webhook_Handler {
     
     public function __construct() {
         require_once IPOS_SYNC_WP_PLUGIN_DIR . '/includes/class-ipos-api.php';
-        $this->ipos_api = new Ocellaris_IPos_API();
+        $this->ipos_api = new IPos_API();
         $this->webhook_id = get_option('ocellaris_ipos_webhook_id');
         
         // Registrar endpoint REST API interno

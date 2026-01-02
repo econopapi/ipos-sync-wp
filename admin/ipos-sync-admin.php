@@ -12,7 +12,8 @@ if (!defined('ABSPATH')) {
 
 class IPos_Sync_Admin {
     
-    private $api_key_option = 'ocellaris_ipos_api_key';
+    private $api_base_url_option = 'ipos_sync_api_base_url';
+    private $api_key_option = 'ipos_sync_api_key';
     
     public function __construct() {
         add_action('admin_menu', array($this, 'add_admin_menu'));
@@ -63,7 +64,8 @@ class IPos_Sync_Admin {
      * Registrar settings
      */
     public function register_settings() {
-        register_setting('ocellaris_ipos_settings', $this->api_key_option);
+        register_setting('ipos_sync_settings', $this->api_key_option);
+        register_setting('ipos_sync_settings', $this->api_base_url_option);
     }
     
     /**
@@ -277,11 +279,28 @@ class IPos_Sync_Admin {
             
             <form method="post" action="options.php">
                 <?php
-                settings_fields('ocellaris_ipos_settings');
-                do_settings_sections('ocellaris_ipos_settings');
+                settings_fields('ipos_sync_settings');
+                do_settings_sections('ipos_sync_settings');
                 ?>
                 
                 <table class="form-table">
+                    <tr>
+                        <th scope="row">
+                            <label for="<?php echo $this->api_base_url_option; ?>">
+                                URL de la API de iPos
+                            </label>
+                        </th>
+                        <td>
+                            <input type="text" 
+                                   id="<?php echo $this->api_base_url_option; ?>" 
+                                   name="<?php echo $this->api_base_url_option; ?>" 
+                                   value="<?php echo esc_attr(get_option($this->api_base_url_option)); ?>" 
+                                   class="regular-text" />
+                            <p class="description">
+                                Ingresa la URL base de la API de iPos.<br />Por ejemplo, <code>https://ocellaris.ipos.services/api/v1</code>.
+                            </p>
+                        </td>
+                    </tr>
                     <tr>
                         <th scope="row">
                             <label for="<?php echo $this->api_key_option; ?>">
@@ -295,7 +314,7 @@ class IPos_Sync_Admin {
                                    value="<?php echo esc_attr(get_option($this->api_key_option)); ?>" 
                                    class="regular-text" />
                             <p class="description">
-                                Pegá acá tu Bearer token de iPos. Lo encontrás en tu panel de iPos.
+                                Ingresa tu Bearer token de iPos. Lo encuentras en tu panel de iPos.
                             </p>
                         </td>
                     </tr>
@@ -413,17 +432,22 @@ class IPos_Sync_Admin {
         check_ajax_referer('ipos_sync_nonce', 'nonce');
         
         if (!current_user_can('manage_options')) {
-            wp_send_json_error('No tenés permisos para hacer esto.');
+            wp_send_json_error('No tienes permisos para hacer esto.');
         }
         
         $api_key = get_option($this->api_key_option);
+        $base_url = get_option($this->api_base_url_option);
         
         if (empty($api_key)) {
             wp_send_json_error('Falta configurar el API Key.');
         }
         
+        if (empty($base_url)) {
+            wp_send_json_error('Falta configurar la URL base de la API.');
+        }
+        
         $response = wp_remote_get(
-            'https://ocellaris.ipos.services/api/v1/categories',
+            $base_url . '/categories',
             array(
                 'headers' => array(
                     'Authorization' => 'Bearer ' . $api_key
@@ -507,7 +531,7 @@ class IPos_Sync_Admin {
         }
         
         require_once IPOS_SYNC_WP_PLUGIN_DIR . '/includes/class-ipos-api.php';
-        $api = new Ocellaris_IPos_API();
+        $api = new IPos_API();
         
         // Eliminar opciones guardadas
         delete_option('ocellaris_ipos_category_map');
@@ -515,7 +539,7 @@ class IPos_Sync_Admin {
         delete_transient('ocellaris_ipos_categories_count');
         
         // Limpiar caché de productos usando la API
-        $api->clear_products_cache();
+        $api->clear_ipos_cache();
         
         // Limpiar sesión
         delete_transient('ocellaris_sync_session_id');

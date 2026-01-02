@@ -29,7 +29,7 @@ class Ocellaris_Stock_Sync {
 
     public function __construct(){
         require_once IPOS_SYNC_WP_PLUGIN_DIR . '/includes/class-ipos-api.php';
-        $this->ipos_api = new Ocellaris_IPos_API();
+        $this->ipos_api = new IPos_API();
         $this->load_product_map();
         $this->start_time = time();
         @ini_set('max_execution_time', $this->max_execution_time);
@@ -306,7 +306,7 @@ class Ocellaris_Stock_Sync {
             'https://ocellaris.ipos.services/api/v1/stock/check',
             array(
                 'headers' => array(
-                    'Authorization' => 'Bearer ' . get_option('ocellaris_ipos_api_key'),
+                    'Authorization' => 'Bearer ' . get_option('ipos_sync_api_key'),
                     'Content-Type' => 'application/json'
                 ),
                 'body' => json_encode($request_body),
