@@ -30,7 +30,7 @@ class Ocellaris_Product_Sync {
     private $cache_duration = 3600; // 1 hora
     
     public function __construct() {
-        require_once get_stylesheet_directory() . '/includes/class-ipos-api.php';
+        require_once IPOS_SYNC_WP_PLUGIN_DIR . '/includes/class-ipos-api.php';
         $this->ipos_api = new Ocellaris_IPos_API();
         $this->load_category_map();
         $this->load_product_map();

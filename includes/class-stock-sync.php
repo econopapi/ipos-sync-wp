@@ -28,7 +28,7 @@ class Ocellaris_Stock_Sync {
     // esto puede variar en otras instancias de iPos
 
     public function __construct(){
-        require_once get_stylesheet_directory() . '/includes/class-ipos-api.php';
+        require_once IPOS_SYNC_WP_PLUGIN_DIR . '/includes/class-ipos-api.php';
         $this->ipos_api = new Ocellaris_IPos_API();
         $this->load_product_map();
         $this->start_time = time();

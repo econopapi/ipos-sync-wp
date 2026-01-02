@@ -10,7 +10,7 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-class Ocellaris_IPos_Admin {
+class IPos_Sync_Admin {
     
     private $api_key_option = 'ocellaris_ipos_api_key';
     
@@ -76,14 +76,14 @@ class Ocellaris_IPos_Admin {
         
         wp_enqueue_style(
             'ocellaris-ipos-admin',
-            get_stylesheet_directory_uri() . '/admin/css/ipos-admin.css',
+            IPOS_SYNC_WP_PLUGIN_URL . '/admin/css/ipos-admin.css',
             array(),
             '1.0.0'
         );
         
         wp_enqueue_script(
             'ocellaris-ipos-admin',
-            get_stylesheet_directory_uri() . '/admin/js/ipos-admin.js',
+            IPOS_SYNC_WP_PLUGIN_URL . '/admin/js/ipos-admin.js',
             array('jquery'),
             '1.0.0',
             true
@@ -455,8 +455,8 @@ class Ocellaris_IPos_Admin {
             wp_send_json_error('No tenés permisos para hacer esto.');
         }
         
-        require_once get_stylesheet_directory() . '/includes/class-ipos-api.php';
-        require_once get_stylesheet_directory() . '/includes/class-category-sync.php';
+        require_once IPOS_SYNC_WP_PLUGIN_DIR . '/includes/class-ipos-api.php';
+        require_once IPOS_SYNC_WP_PLUGIN_DIR . '/includes/class-category-sync.php';
         
         $sync = new Ocellaris_Category_Sync();
         $result = $sync->sync_all_categories();
@@ -506,7 +506,7 @@ class Ocellaris_IPos_Admin {
             wp_send_json_error('No tenés permisos para hacer esto.');
         }
         
-        require_once get_stylesheet_directory() . '/includes/class-ipos-api.php';
+        require_once IPOS_SYNC_WP_PLUGIN_DIR . '/includes/class-ipos-api.php';
         $api = new Ocellaris_IPos_API();
         
         // Eliminar opciones guardadas
@@ -543,8 +543,8 @@ class Ocellaris_IPos_Admin {
         
         $offset = isset($_POST['offset']) ? intval($_POST['offset']) : 0;
         
-        require_once get_stylesheet_directory() . '/includes/class-ipos-api.php';
-        require_once get_stylesheet_directory() . '/includes/class-product-sync.php';
+        require_once IPOS_SYNC_WP_PLUGIN_DIR . '/includes/class-ipos-api.php';
+        require_once IPOS_SYNC_WP_PLUGIN_DIR . '/includes/class-product-sync.php';
         
         $sync = new Ocellaris_Product_Sync();
         $result = $sync->sync_all_products($offset);
@@ -566,7 +566,7 @@ class Ocellaris_IPos_Admin {
             wp_send_json_error('No tienes permisos para hacer esta acción.');
         }
         $offset = isset($_POST['offset'])? intval($_POST['offset']): 0;
-        require_once get_stylesheet_directory().'/includes/class-stock-sync.php';
+        require_once IPOS_SYNC_WP_PLUGIN_DIR.'/includes/class-stock-sync.php';
         $sync = new Ocellaris_Stock_Sync();
         $result = $sync->sync_all_stock($offset);
 
@@ -772,7 +772,4 @@ class Ocellaris_IPos_Admin {
         ));
     }
 }
-
-// Inicializar
-new Ocellaris_IPos_Admin();
 ?>

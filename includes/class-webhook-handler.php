@@ -7,14 +7,14 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-class Ocellaris_Webhook_Handler {
+class IPos_Sync_Webhook_Handler {
     
     private $ipos_api;
     private $webhook_id;
     private $location_id = '1'; // Locación de Ocellaris en iPos
     
     public function __construct() {
-        require_once get_stylesheet_directory() . '/includes/class-ipos-api.php';
+        require_once IPOS_SYNC_WP_PLUGIN_DIR . '/includes/class-ipos-api.php';
         $this->ipos_api = new Ocellaris_IPos_API();
         $this->webhook_id = get_option('ocellaris_ipos_webhook_id');
         
@@ -429,6 +429,3 @@ class Ocellaris_Webhook_Handler {
         }
     }    
 }
-
-// Inicializar
-new Ocellaris_Webhook_Handler();
