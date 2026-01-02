@@ -2,7 +2,7 @@
 /**
  * Página de administración para iPos Sync WP
  * 
- * @package Ocellaris_Child
+ * @since 1.0.0
  */
 
 // Evitar acceso directo
@@ -26,14 +26,14 @@ class IPos_Sync_Admin {
         add_action('wp_ajax_clear_ipos_cache', array($this, 'ajax_clear_cache'));
         add_action('wp_ajax_sync_ipos_products', array($this, 'ajax_sync_products'));
         add_action('wp_ajax_sync_ipos_stock', array($this, 'ajax_sync_stock'));
-        
-        // NUEVO: AJAX handlers para webhooks
         add_action('wp_ajax_create_ipos_webhook', array($this, 'ajax_create_webhook'));
         add_action('wp_ajax_delete_ipos_webhook', array($this, 'ajax_delete_webhook'));
         add_action('wp_ajax_get_webhook_status', array($this, 'ajax_get_webhook_status'));
         add_action('wp_ajax_reactivate_ipos_webhook', array($this, 'ajax_reactivate_webhook'));
-        // Nuevo: endpoint para System Health
         add_action('wp_ajax_get_ipos_system_health', array($this, 'ajax_get_system_health'));
+
+        // manejador de options
+        add_action('admin_post_save_ipos_sync_settings', array($this, 'handle_save_settings'));
     }
     
     /**
@@ -41,21 +41,21 @@ class IPos_Sync_Admin {
      */
     public function add_admin_menu() {
         add_menu_page(
-            'Integración iPos',
+            'iPos Sync',
             'iPos Sync',
             'manage_options',
-            'ocellaris-ipos',
+            'ipos-sync-admin',
             array($this, 'render_admin_page'),
             'dashicons-update',
             30
         );
         
         add_submenu_page(
-            'ocellaris-ipos',
+            'ipos-sync-admin',
             'Configuración',
             'Configuración',
             'manage_options',
-            'ocellaris-ipos-settings',
+            'ipos-sync-settings',
             array($this, 'render_settings_page')
         );
     }
@@ -72,26 +72,26 @@ class IPos_Sync_Admin {
      * Cargar scripts del admin
      */
     public function enqueue_admin_scripts($hook) {
-        if (strpos($hook, 'ocellaris-ipos') === false) {
+        if (strpos($hook, 'ipos-sync-admin') === false) {
             return;
         }
         
         wp_enqueue_style(
-            'ocellaris-ipos-admin',
+            'ipos-sync-admin',
             IPOS_SYNC_WP_PLUGIN_URL . '/admin/css/ipos-admin.css',
             array(),
             '1.0.0'
         );
         
         wp_enqueue_script(
-            'ocellaris-ipos-admin',
+            'ipos-sync-admin',
             IPOS_SYNC_WP_PLUGIN_URL . '/admin/js/ipos-admin.js',
             array('jquery'),
             '1.0.0',
             true
         );
         
-        wp_localize_script('ocellaris-ipos-admin', 'iposAdmin', array(
+        wp_localize_script('ipos-sync-admin', 'iposAdmin', array(
             'ajax_url' => admin_url('admin-ajax.php'),
             'nonce' => wp_create_nonce('ipos_sync_nonce')
         ));
@@ -277,12 +277,16 @@ class IPos_Sync_Admin {
         <div class="wrap">
             <h1>Configuración iPos</h1>
             
-            <form method="post" action="options.php">
+            <form method="post" action="<?php echo admin_url('admin-post.php'); ?>">
                 <?php
+                // genera campos de seguridad y grupo de opciones
                 settings_fields('ipos_sync_settings');
                 do_settings_sections('ipos_sync_settings');
+                wp_nonce_field('ipos_sync_settings_verify', '_wpnonce');
                 ?>
                 
+                <!-- hidden field para manejar redirección -->
+                <input type="hidden" name="action" value="save_ipos_sync_settings" />
                 <table class="form-table">
                     <tr>
                         <th scope="row">
@@ -297,7 +301,7 @@ class IPos_Sync_Admin {
                                    value="<?php echo esc_attr(get_option($this->api_base_url_option)); ?>" 
                                    class="regular-text" />
                             <p class="description">
-                                Ingresa la URL base de la API de iPos.<br />Por ejemplo, <code>https://ocellaris.ipos.services/api/v1</code>.
+                                Ingresa la URL base de tu API de iPos.<br />Por ejemplo, <code>https://ocellaris.ipos.services/api/v1</code>.
                             </p>
                         </td>
                     </tr>
@@ -314,7 +318,7 @@ class IPos_Sync_Admin {
                                    value="<?php echo esc_attr(get_option($this->api_key_option)); ?>" 
                                    class="regular-text" />
                             <p class="description">
-                                Ingresa tu Bearer token de iPos. Lo encuentras en tu panel de iPos.
+                                Ingresa tu Bearer token de tu API iPos. Lo encuentras en tu panel de iPos.
                             </p>
                         </td>
                     </tr>
@@ -324,6 +328,28 @@ class IPos_Sync_Admin {
             </form>
         </div>
         <?php
+    }
+
+
+    /**
+     * Helper para guardar opciones y redirigir
+     */
+    public function handle_save_settings(){
+        // verificación de nonce de seguridad
+        check_admin_referer('ipos_sync_settings_verify', '_wpnonce');
+        // verificar permisos
+        if (!current_user_can('manage_options')) {
+            wp_die('No tienes permisos para hacer esto.');
+        }
+        // guardar opciones
+        if(isset($_POST[$this->api_key_option])){
+            update_option($this->api_key_option, sanitize_text_field($_POST[$this->api_key_option]));
+        }
+        if(isset($_POST[$this->api_base_url_option])){
+            update_option($this->api_base_url_option, esc_url_raw($_POST[$this->api_base_url_option]));
+        }
+        // redirigir de vuelta a la página principal del plugin
+        wp_redirect(admin_url ('admin.php?page=ipos-sync-admin'));
     }
     
     /**
