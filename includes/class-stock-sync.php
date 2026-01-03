@@ -2,18 +2,18 @@
 /**
  * Sincronización de stock iPos <-> WooCommerce
  * 
- * @package Ocellaris_Child
+ * @since 1.0.0
  */
 
 if(!defined('ABSPATH')){
     exit;
 }
 
-class Ocellaris_Stock_Sync {
+class IPos_Stock_Sync {
     private $ipos_api;
     private $category_map = array();
     private $product_map = array();
-    private $batch_sizer = 20;
+    private $batch_size = 30;
 
     private $max_execution_time = 999999;
     private $start_time;
@@ -21,11 +21,11 @@ class Ocellaris_Stock_Sync {
     // logging
     private $logs = array();
     private $current_session_id;
-    private $logs_cache_key = 'ocellaris_ipos_stock_sync_logs';
+    private $logs_cache_key = 'ipos_stock_sync_logs';
 
     // configuración específica de iPos
+    // [REVISAR] iPos Location ID debe ser configurable
     private $ipos_location_id = '1'; // "Tienda Ocellaris" por defecto para consultar stock
-    // esto puede variar en otras instancias de iPos
 
     public function __construct(){
         require_once IPOS_SYNC_WP_PLUGIN_DIR . '/includes/class-ipos-api.php';
@@ -35,8 +35,9 @@ class Ocellaris_Stock_Sync {
         @ini_set('max_execution_time', $this->max_execution_time);
         @ini_set('memory_limit', '1024M');
         
-        $this->log('Inicializando Ocellaris_Stock_Sync', 'info');
+        $this->log('Inicializando IPos_Stock_Sync', 'info');
     }
+
 
     /**
      * sistema de logging verboso
@@ -143,13 +144,13 @@ class Ocellaris_Stock_Sync {
      * obtener o crear session id
      */
     private function get_or_create_session_id(){
-        $session_id = get_transient('ocellaris_stock_sync_session_id');
+        $session_id = get_transient('ipos_stock_sync_session_id');
         if(!$session_id){
             $session_id = uniqid('stock_sync_', true);
-            set_transient('ocellaris_stock_sync_session_id', $session_id, HOUR_IN_SECONDS);
-            $this->log('🆕 Nueva sesión de sincronización de stock creada: '.$session_id, 'info');
+            set_transient('ipos_stock_sync_session_id', $session_id, HOUR_IN_SECONDS);
+            $this->log('Nueva sesión de sincronización de stock creada: '.$session_id, 'info');
         } else {
-            $this->log('♻️ Reanudando sesión existente: '.$session_id, 'info');
+            $this->log('Reanudando sesión existente: '.$session_id, 'info');
         }
         return $session_id;
     }
@@ -159,12 +160,12 @@ class Ocellaris_Stock_Sync {
      * sincronización de stock de TODOS los productos
      */
     public function sync_all_stock($offset = 0){
-        $this->log('📊 Iniciando sync_all_stock', 'info', array('offset' => $offset));
+        $this->log('Iniciando sync_all_stock', 'info', array('offset' => $offset));
         // obtener productos de woocommerce con mapeo en ipos
         $wc_products = $this->get_wc_products_with_ipos_mapping($offset);
         if(empty($wc_products)){
             $this->log('⚠️ No se encontraron productos mapeados en iPos', 'warning');
-            delete_transient('ocellaris_stock_sync_session_id');
+            delete_transient('ipos_stock_sync_session_id');
             return array(
                 'success' => false,
                 'message' => 'No se encontraron productos mapeados en iPos',
@@ -172,11 +173,11 @@ class Ocellaris_Stock_Sync {
             );
         }
         $total = $this->count_wc_products_with_ipos_mapping();
-        $batch = array_slice($wc_products, 0, $this->batch_sizer);
+        $batch = array_slice($wc_products, 0, $this->batch_size);
         $batch_count = count($batch);
-        $this->log('📦 Lote preparado', 'info', array(
+        $this->log('Lote preparado', 'info', array(
             'offset' => $offset,
-            'batch_size' => $this->batch_sizer,
+            'batch_size' => $this->batch_size,
             'batch_count' => $batch_count,
             'total' => $total,
             'remaining' => $total-$offset
@@ -184,7 +185,7 @@ class Ocellaris_Stock_Sync {
         $updated = 0;
         $failed = 0;
         $errors = array();
-        $this->log('🔄 Procesando lote de '.$batch_count.'productos...', 'info');
+        $this->log('Procesando lote de '.$batch_count.' productos...', 'info');
         foreach($batch as $index => $product_data){
             $product_number = $offset+$index+1;
             $wc_product_id = $product_data['ID'];
@@ -218,7 +219,7 @@ class Ocellaris_Stock_Sync {
             $sync_result = $this->sync_product_stock($wc_product_id, $ipos_product_id, $ipos_variation_id);
             if ($sync_result['success']){
                 $updated++;
-                $this->log("✅ Stock sincronizado: {$sync_result['wc_stock']} unidades", 'success');
+                $this->log("Stock sincronizado: {$sync_result['wc_stock']} unidades", 'success');
             } else {
                 $failed++;
                 $errors[] =  "Producto {$wc_product_id}: {$sync_result['error']}";
@@ -234,8 +235,8 @@ class Ocellaris_Stock_Sync {
         $next_offset = $offset+$batch_count;
         $has_more = $next_offset<$total;
         if(!$has_more){
-            $this->log('✨ Sincronización de stock completada', 'success');
-            delete_transient('ocellaris_stock_sync_session_id');
+            $this->log('Sincronización de stock completada', 'success');
+            delete_transient('ipos_stock_sync_session_id');
         }
         return array(
             'success' => true,
@@ -272,14 +273,14 @@ class Ocellaris_Stock_Sync {
             return array('success'=>false,
                          'error'=>'No se pudo obtener stock de iPos.');
         }
-        $this->log("📦 Stock en iPos: {$ipos_stock['quantity']} unidades", 'stock');
+        $this->log("Stock en iPos: {$ipos_stock['quantity']} unidades", 'stock');
         // actualizar stock en woocommerce
         $update_result = $this->update_wc_product_stock($wc_product_id, $ipos_stock['quantity']);
         if(!$update_result){
             return array('success'=>false,
                          'error'=>'Error al actualizar stock en WooCommerce');
         }
-        $this->log("✅ Stock en WooCommerce actualizado a {$ipos_stock['quantity']}", 'stock');
+        $this->log("Stock en WooCommerce actualizado a {$ipos_stock['quantity']}", 'stock');
         return array(
             'success' => true,
             'ipos_stock' => $ipos_stock['quantity'],
@@ -293,7 +294,7 @@ class Ocellaris_Stock_Sync {
      * POST /api/v1/stock/check
      */
     private function get_ipos_stock($product_id, $variation_id) {
-        $this->log("🌐 Llamando a iPos API para stock (Product: {$product_id}, Variation: {$variation_id})", 'api');
+        $this->log("Llamando a iPos API para stock (Product: {$product_id}, Variation: {$variation_id})", 'api');
         $request_body = array(
             'ProductID' => (string) $product_id,
             'VariationID' => (string) $variation_id,
@@ -303,7 +304,7 @@ class Ocellaris_Stock_Sync {
         
         // petición POST a API iPos
         $response = wp_remote_post(
-            'https://ocellaris.ipos.services/api/v1/stock/check',
+            get_option('ipos_sync_api_url') . '/stock/check',
             array(
                 'headers' => array(
                     'Authorization' => 'Bearer ' . get_option('ipos_sync_api_key'),
@@ -328,7 +329,7 @@ class Ocellaris_Stock_Sync {
         $data = json_decode($body, true);
         
         if (json_last_error() !== JSON_ERROR_NONE) {
-            $this->log("❌ Error parseando JSON: " . json_last_error_msg(), 'error');
+            $this->log("❌ Error serializando JSON: " . json_last_error_msg(), 'error');
             return false;
         }
         
@@ -339,7 +340,7 @@ class Ocellaris_Stock_Sync {
         }
         $stock_data = $data['Data'][0];
         $quantity = isset($stock_data['Quantity']) ? (int) $stock_data['Quantity'] : 0;
-        $this->log("✅ Stock obtenido correctamente: {$quantity} unidades", 'success');  
+        $this->log("Stock obtenido correctamente: {$quantity} unidades", 'success');  
         return array(
             'quantity' => $quantity,
             'product_id' => $stock_data['ProductID'] ?? $product_id,
@@ -353,7 +354,7 @@ class Ocellaris_Stock_Sync {
      * actualización de stock en woocommerce
      */
     private function update_wc_product_stock($product_id, $quantity) {
-        $this->log("🔄 Actualizando stock en WooCommerce (ID: {$product_id}, Qty: {$quantity})", 'stock');
+        $this->log("Actualizando stock en WooCommerce (ID: {$product_id}, Qty: {$quantity})", 'stock');
         try {
             $product = wc_get_product($product_id); 
             if (!$product) {
@@ -376,7 +377,7 @@ class Ocellaris_Stock_Sync {
                 $this->log("❌ Error al guardar producto", 'error');
                 return false;
             }
-            $this->log("✅ Stock actualizado correctamente", 'success');
+            $this->log("Stock actualizado correctamente", 'success');
             return true;
         } catch (Exception $e) {
             $this->log("❌ Excepción: " . $e->getMessage(), 'error');
@@ -390,7 +391,7 @@ class Ocellaris_Stock_Sync {
      */
     private function get_wc_products_with_ipos_mapping($offset = 0, $limit = 500) {
         global $wpdb;
-        $this->log("📥 Obteniendo productos con mapeo en iPos (offset: {$offset}, limit: {$limit})", 'info');
+        $this->log("Obteniendo productos con mapeo en iPos (offset: {$offset}, limit: {$limit})", 'info');
         // Query para obtener productos que tienen meta iPos
         $query = "
             SELECT DISTINCT p.ID, p.post_excerpt, pm1.meta_value as ipos_product_id, pm2.meta_value as ipos_variation_id
@@ -402,7 +403,7 @@ class Ocellaris_Stock_Sync {
             LIMIT %d OFFSET %d
         ";
         $results = $wpdb->get_results($wpdb->prepare($query, $limit, $offset), ARRAY_A);
-        $this->log("✅ Query ejecutada: " . count($results) . " productos encontrados", 'info');
+        $this->log("Query ejecutada: " . count($results) . " productos encontrados", 'info');
         return $results;
     }
 
@@ -432,5 +433,4 @@ class Ocellaris_Stock_Sync {
             $this->product_map = $saved_map;
         }
     }
-/** END Ocellaris_Stock_Sync */
 }

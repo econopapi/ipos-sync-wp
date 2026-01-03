@@ -634,7 +634,7 @@ class IPos_Sync_Admin {
         }
         $offset = isset($_POST['offset'])? intval($_POST['offset']): 0;
         require_once IPOS_SYNC_WP_PLUGIN_DIR.'/includes/class-stock-sync.php';
-        $sync = new Ocellaris_Stock_Sync();
+        $sync = new IPos_Stock_Sync();
         $result = $sync->sync_all_stock($offset);
 
         // Nuevo: marcar última sincronización de stock cuando finaliza
