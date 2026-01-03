@@ -1,9 +1,8 @@
 <?php
 /**
  * Sincronización de productos iPos <-> WooCommerce
- * OPTIMIZADO con caché y logging verboso
  * 
- * @package Ocellaris_Child
+ * @since 1.0.0
  */
 
 if (!defined('ABSPATH')) {
