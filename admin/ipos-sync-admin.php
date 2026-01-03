@@ -423,7 +423,7 @@ class IPos_Sync_Admin {
         // Productos
         $wc_products          = wp_count_posts('product');
         $wc_products_count    = isset($wc_products->publish) ? (int)$wc_products->publish : 0;
-        $product_map          = get_option('ocellaris_ipos_product_map', array());
+        $product_map          = get_option('ipos_sync_product_map', array());
         $mapped_products      = is_array($product_map) ? count($product_map) : 0;
         $mapped_prod_percent  = ($wc_products_count > 0) ? round(($mapped_products / $wc_products_count) * 100, 1) : 0;
 
@@ -578,14 +578,14 @@ class IPos_Sync_Admin {
         
         // Eliminar opciones guardadas
         delete_option('ipos_sync_category_map');
-        delete_option('ocellaris_ipos_product_map');
+        delete_option('ipos_sync_product_map');
         delete_transient('ocellaris_ipos_categories_count');
         
         // Limpiar caché de productos usando la API
         $api->clear_ipos_cache();
         
         // Limpiar sesión
-        delete_transient('ocellaris_sync_session_id');
+        delete_transient('ipos_sync_session_id');
         
         // Limpiar todas las sesiones de caché de productos
         global $wpdb;
@@ -613,7 +613,7 @@ class IPos_Sync_Admin {
         require_once IPOS_SYNC_WP_PLUGIN_DIR . '/includes/class-ipos-api.php';
         require_once IPOS_SYNC_WP_PLUGIN_DIR . '/includes/class-product-sync.php';
         
-        $sync = new Ocellaris_Product_Sync();
+        $sync = new IPos_Product_Sync();
         $result = $sync->sync_all_products($offset);
         
         if ($result['success'] && $result['completed']) {
@@ -816,7 +816,7 @@ class IPos_Sync_Admin {
         // $apply_overall($cache_status);
 
         // Sesión de sincronización activa
-        $session_id = get_transient('ocellaris_sync_session_id');
+        $session_id = get_transient('ipos_sync_session_id');
         $session_status = $session_id ? 'warn' : 'ok';
         $items[] = array(
             'key'    => 'session',

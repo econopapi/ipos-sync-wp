@@ -10,12 +10,12 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-class Ocellaris_Product_Sync {
+class IPos_Product_Sync {
     
     private $ipos_api;
     private $category_map = array();
     private $product_map = array();
-    private $batch_size = 20; 
+    private $batch_size = 30; 
     
     private $max_execution_time = 99999; 
     private $start_time;
@@ -23,11 +23,11 @@ class Ocellaris_Product_Sync {
     // Sistema de logging
     private $logs = array();
     private $current_session_id;
-    private $logs_cache_key = 'ocellaris_ipos_sync_logs';
+    private $logs_cache_key = 'ipos_products_sync_logs';
     
     // Caché de productos
-    private $products_cache_key = 'ocellaris_ipos_products_cache';
-    private $cache_duration = 3600; // 1 hora
+    private $products_cache_key = 'ipos_products_sync_cache';
+    private $cache_duration = 43200; // 12 horas
     
     public function __construct() {
         require_once IPOS_SYNC_WP_PLUGIN_DIR . '/includes/class-ipos-api.php';
@@ -38,9 +38,9 @@ class Ocellaris_Product_Sync {
         $this->current_session_id = $this->get_or_create_session_id();
         
         @ini_set('max_execution_time', $this->max_execution_time);
-        @ini_set('memory_limit', '512M');
+        @ini_set('memory_limit', '1024M');
         
-        $this->log('Inicializado Ocellaris_Product_Sync', 'info');
+        $this->log('Inicializado IPos_Product_Sync', 'info');
     }
     
     /**
@@ -65,10 +65,10 @@ class Ocellaris_Product_Sync {
         
         $this->logs[] = $log_entry;
         
-        // NUEVO: Guardar en transient para persistencia entre requests
+        // guardar logs en caché
         $this->persist_logs_to_cache();
         
-        // También guardar en error_log para debugging
+        // guardar en error_log para debugging servidor
         error_log(sprintf(
             '[IPOS-SYNC][%s][%ds][%sMB] %s',
             strtoupper($level),
@@ -79,7 +79,7 @@ class Ocellaris_Product_Sync {
     }
     
     /**
-     * NUEVO: Guardar logs en transient para que sobrevivan entre requests AJAX
+     * Persistencia de logs en caché entre requests
      */
     private function persist_logs_to_cache() {
         // Guardar solo los últimos 500 logs para no sobrecargar
@@ -88,7 +88,7 @@ class Ocellaris_Product_Sync {
     }
     
     /**
-     * NUEVO: Recuperar logs persistidos de requests anteriores
+     * Recuperación de logs persistidos de requests anteriores
      */
     private function load_logs_from_cache() {
         $cached_logs = get_transient($this->logs_cache_key . '_' . $this->current_session_id);
@@ -162,16 +162,14 @@ class Ocellaris_Product_Sync {
      * Obtener o crear session ID para esta sincronización
      */
     private function get_or_create_session_id() {
-        $session_id = get_transient('ocellaris_sync_session_id');
-        
+        $session_id = get_transient('ipos_sync_session_id');        
         if (!$session_id) {
             $session_id = uniqid('sync_', true);
-            set_transient('ocellaris_sync_session_id', $session_id, $this->cache_duration);
-            $this->log('🆕 Nueva sesión de sincronización creada: ' . $session_id, 'info');
+            set_transient('ipos_sync_session_id', $session_id, $this->cache_duration);
+            $this->log('Nueva sesión de sincronización creada: ' . $session_id, 'info');
         } else {
-            $this->log('♻️ Reanudando sesión existente: ' . $session_id, 'info');
-        }
-        
+            $this->log('Reanudando sesión existente: ' . $session_id, 'info');
+        }        
         return $session_id;
     }
     
@@ -188,9 +186,8 @@ class Ocellaris_Product_Sync {
                 'cache_key' => $cache_key
             ));
             return $cached_products;
-        }
-        
-        $this->log('🌐 Llamando a la API de iPos para obtener productos...', 'api');
+        }        
+        $this->log('Llamando a la API de iPos para obtener productos...', 'api');
         $api_start = microtime(true);
 
         // Obtener productos paginados
@@ -200,17 +197,16 @@ class Ocellaris_Product_Sync {
         $total_downloaded = 0;
 
         while ($has_more) {
-            $this->log("📄 Solicitando página {$page}...", 'api');
+            $this->log("Solicitando página {$page}...", 'api');
             
             // Hacer la llamada con parámetro de página
             $result = $this->ipos_api->get_products($page);
-            
             if (!$result['success']) {
                 $this->log('❌ Error al obtener productos de iPos en página ' . $page . ': ' . $result['error'], 'error');
                 
                 // Si ya tenemos productos, continuar con los que tenemos
                 if (!empty($all_products)) {
-                    $this->log('⚠️ Continuando con productos ya obtenidos', 'warning');
+                    $this->log('Continuando con productos ya obtenidos', 'warning');
                     break;
                 }
                 
@@ -221,11 +217,11 @@ class Ocellaris_Product_Sync {
             $page_count = count($page_products);
             $total_downloaded += $page_count;
             
-            $this->log("✅ Página {$page} descargada: {$page_count} productos", 'api');
+            $this->log("Página {$page} descargada: {$page_count} productos", 'api');
             
             if (empty($page_products)) {
                 $has_more = false;
-                $this->log("🏁 Fin de paginación - página {$page} vacía", 'info');
+                $this->log("Fin de paginación - página {$page} vacía", 'info');
             } else {
                 $all_products = array_merge($all_products, $page_products);
                 
@@ -234,7 +230,7 @@ class Ocellaris_Product_Sync {
                 // O puedes agregar lógica basada en headers de paginación si la API los proporciona
                 if ($page_count < 100) { // Ajusta este número según tu API
                     $has_more = false;
-                    $this->log("🏁 Última página detectada (menos de 100 productos)", 'info');
+                    $this->log("Última página detectada (menos de 100 productos)", 'info');
                 } else {
                     $page++;
                     
@@ -246,43 +242,37 @@ class Ocellaris_Product_Sync {
             }
             
             // Seguridad: límite de páginas para evitar loops infinitos
-            if ($page > 100) {
-                $this->log('⚠️ Límite de páginas alcanzado (100)', 'warning');
+            if ($page > 500) {
+                $this->log('⚠️ Límite de páginas alcanzado (500)', 'warning');
                 break;
             }            
-        }
-        
-        // $result = $this->ipos_api->get_products();
-        
-        $api_duration = round(microtime(true) - $api_start, 2);
-        
-        $this->log('✅ Productos descargados de la API', 'success', array(
+        }        
+        $api_duration = round(microtime(true) - $api_start, 2);        
+        $this->log('Productos descargados de la API', 'success', array(
             'total' => count($all_products),
             'pages' => $page + 1,
             'duration' => $api_duration . 's',
             'size_mb' => round(strlen(json_encode($all_products)) / 1024 / 1024, 2)
-        ));
-        
+        ));        
         if (empty($all_products)) {
-            $this->log('⚠️ No se obtuvieron productos de la API', 'warning');
+            $this->log('No se obtuvieron productos de la API', 'warning');
             return false;
-        }
-        
+        }        
         // Guardar en caché
         set_transient($cache_key, $all_products, $this->cache_duration);
-        $this->log('💾 Productos guardados en caché', 'cache', array(
+        $this->log('Productos guardados en caché', 'cache', array(
             'key' => $cache_key,
             'count' => count($all_products)
-        ));
-        
+        ));        
         return $all_products;
     }
+
     
     /**
      * Sincronizar todos los productos (con procesamiento por lotes)
      */
     public function sync_all_products($offset = 0) {
-        $this->log('📊 Iniciando sync_all_products', 'info', array('offset' => $offset));
+        $this->log('Iniciando sync_all_products', 'info', array('offset' => $offset));
         
         // Obtener productos (cachéados)
         $all_products = $this->get_all_products_cached();
@@ -307,7 +297,7 @@ class Ocellaris_Product_Sync {
         $total = count($all_products);
         
         // Filtrar productos ACTIVE y reindexear correctamente
-        $this->log('🔍 Filtrando productos activos...', 'info');
+        $this->log('Filtrando productos activos...', 'info');
         $filtered = array_filter($all_products, function($product) {
             return isset($product['Status']) && $product['Status'] === 'ACTIVE';
         });
@@ -316,7 +306,7 @@ class Ocellaris_Product_Sync {
         $active_products = array_values($filtered);
         $active_count = count($active_products);
         
-        $this->log('✅ Filtrado completado', 'success', array(
+        $this->log('Filtrado completado', 'success', array(
             'total' => $total,
             'active' => $active_count,
             'inactive' => $total - $active_count
@@ -324,13 +314,13 @@ class Ocellaris_Product_Sync {
         
         // Validar que el offset sea válido
         if ($offset >= $active_count) {
-            $this->log('🎉 ¡Sincronización completada! Todos los productos han sido procesados', 'success', array(
+            $this->log('¡Sincronización completada! Todos los productos han sido procesados', 'success', array(
                 'total_processed' => $active_count,
                 'offset' => $offset
             ));
             
             // LIMPIAR SESIÓN SOLO CUANDO TERMINA
-            delete_transient('ocellaris_sync_session_id');
+            delete_transient('ipos_sync_session_id');
             
             return array(
                 'success' => true,
@@ -342,7 +332,7 @@ class Ocellaris_Product_Sync {
                 'updated' => 0,
                 'skipped' => 0,
                 'errors' => array(),
-                'message' => '✨ ¡Sincronización 100% completada!',
+                'message' => '¡Sincronización 100% completada!',
                 'logs' => $this->get_logs()
             );
         }
@@ -351,7 +341,7 @@ class Ocellaris_Product_Sync {
         $batch = array_slice($active_products, $offset, $this->batch_size);
         $batch_count = count($batch);
         
-        $this->log('📦 Lote actual preparado', 'info', array(
+        $this->log('Lote actual preparado', 'info', array(
             'offset' => $offset,
             'batch_size' => $this->batch_size,
             'batch_count' => $batch_count,
@@ -360,7 +350,7 @@ class Ocellaris_Product_Sync {
         
         if (empty($batch)) {
             $this->log('⚠️ Lote vacío - probablemente fin de datos', 'warning');
-            delete_transient('ocellaris_sync_session_id');
+            delete_transient('ipos_sync_session_id');
             
             return array(
                 'success' => true,
@@ -368,7 +358,7 @@ class Ocellaris_Product_Sync {
                 'total' => $total,
                 'active' => $active_count,
                 'processed' => $offset,
-                'message' => '✨ ¡Sincronización completada!',
+                'message' => '¡Sincronización completada!',
                 'logs' => $this->get_logs()
             );
         }
@@ -378,25 +368,22 @@ class Ocellaris_Product_Sync {
         $skipped = 0;
         $errors = array();
         
-        $this->log('🔄 Procesando lote de ' . $batch_count . ' productos...', 'info');
+        $this->log('Procesando lote de ' . $batch_count . ' productos...', 'info');
         
         foreach ($batch as $index => $product) {
             $product_number = $offset + $index + 1;
-            $product_name = isset($product['Name']) ? $product['Name'] : 'Sin nombre';
+            $product_name = isset($product['Name']) ? $product['Name'] : 'Sin nombre';           
+            $this->log("[{$product_number}/{$active_count}] {$product_name}", 'info');
             
-            $this->log("🔸 [{$product_number}/{$active_count}] {$product_name}", 'info');
-            
-            // Verificar timeout - DEJAR MÁS MARGEN
+            // timeout preventivo
             $elapsed = time() - $this->start_time;
             if ($elapsed > ($this->max_execution_time - 45)) {
-                $this->log('⏰ Timeout preventivo alcanzado', 'warning', array(
+                $this->log('Timeout preventivo alcanzado', 'warning', array(
                     'elapsed' => $elapsed . 's',
                     'max' => $this->max_execution_time . 's',
                     'next_offset' => $offset + $index
                 ));
                 $this->save_product_map();
-                
-                // NO LIMPIAR SESIÓN - MANTENER PARA PRÓXIMO LOTE
                 $next_offset = $offset + $index;
                 
                 return array(
@@ -420,19 +407,19 @@ class Ocellaris_Product_Sync {
             $sync_result = $this->sync_product($product);
             $sync_duration = round(microtime(true) - $sync_start, 3);
             
-            $this->log("  ⏱️ Procesado en {$sync_duration}s", 'info');
+            $this->log("Procesado en {$sync_duration}s", 'info');
             $this->process_sync_result($sync_result, $created, $updated, $skipped, $errors);
         }
         
         // Guardar el mapeo
         $this->save_product_map();
-        $this->log('💾 Mapeo de productos guardado', 'cache');
+        $this->log('Mapeo de productos guardado', 'cache');
         
         // IMPORTANTE: Calcular el próximo offset CORRECTAMENTE
         $next_offset = $offset + $batch_count;
         $has_more = $next_offset < $active_count;
         
-        $this->log('📊 Lote completado', 'success', array(
+        $this->log('Lote completado', 'success', array(
             'current_offset' => $offset,
             'batch_processed' => $batch_count,
             'next_offset' => $next_offset,
@@ -443,10 +430,9 @@ class Ocellaris_Product_Sync {
             'skipped' => $skipped
         ));
         
-        // NO LIMPIAR SESIÓN si hay más productos
         if (!$has_more) {
-            $this->log('✨ Todos los productos sincronizados', 'success');
-            delete_transient('ocellaris_sync_session_id');
+            $this->log('Todos los productos sincronizados', 'success');
+            delete_transient('ipos_sync_session_id');
         }
         
         return array(
@@ -473,6 +459,7 @@ class Ocellaris_Product_Sync {
             'logs' => $this->get_logs()
         );
     }
+
     
     /**
      * Sincronizar un producto individual
@@ -481,12 +468,12 @@ class Ocellaris_Product_Sync {
         $ipos_id = $ipos_product['ID'];
         $name = sanitize_text_field($ipos_product['Name']);
         
-        $this->log("  🔍 Analizando producto ID:{$ipos_id}", 'info');
+        $this->log("Analizando producto ID:{$ipos_id}", 'info');
         
         $variations = isset($ipos_product['ProductVariations']) ? $ipos_product['ProductVariations'] : array();
         
         if (empty($variations)) {
-            $this->log("  ⚠️ Sin variaciones, omitiendo", 'warning');
+            $this->log("⚠️ Sin variaciones, omitiendo", 'warning');
             return array(
                 'success' => false,
                 'type' => 'skip',
@@ -496,7 +483,7 @@ class Ocellaris_Product_Sync {
         }
         
         if (count($variations) > 1) {
-            $this->log("  ⏭️ Producto variable detectado, omitiendo (pendiente)", 'info');
+            $this->log("Producto variable detectado, omitiendo (pendiente)", 'info');
             return array(
                 'success' => true,
                 'type' => 'skipped',
@@ -509,7 +496,7 @@ class Ocellaris_Product_Sync {
         $sku = isset($variation['SKU']) ? sanitize_text_field($variation['SKU']) : '';
         
         if (empty($sku)) {
-            $this->log("  ⚠️ Sin SKU, omitiendo", 'warning');
+            $this->log("⚠️ Sin SKU, omitiendo", 'warning');
             return array(
                 'success' => false,
                 'type' => 'skip',
@@ -518,22 +505,22 @@ class Ocellaris_Product_Sync {
             );
         }
         
-        $this->log("  📝 SKU: {$sku}", 'info');
+        $this->log("SKU: {$sku}", 'info');
         
         // Buscar si ya existe en WC por SKU
         $wc_product_id = $this->get_wc_product_by_sku($sku);
         
         if ($wc_product_id) {
-            $this->log("  ♻️ Producto existente encontrado (WC ID: {$wc_product_id})", 'info');
+            $this->log("Producto existente encontrado (WC ID: {$wc_product_id})", 'info');
         } else {
-            $this->log("  🆕 Producto nuevo, creando...", 'info');
+            $this->log("Producto nuevo, creando...", 'info');
         }
         
         // Preparar datos del producto
         $prep_start = microtime(true);
         $product_data = $this->prepare_product_data($ipos_product, $variation);
         $prep_duration = round(microtime(true) - $prep_start, 3);
-        $this->log("  ⚙️ Datos preparados en {$prep_duration}s", 'info');
+        $this->log("Datos preparados en {$prep_duration}s", 'info');
         
         if ($wc_product_id) {
             // Actualizar producto existente
@@ -543,7 +530,7 @@ class Ocellaris_Product_Sync {
             
             if ($result) {
                 $this->product_map[$ipos_id] = $wc_product_id;
-                $this->log("  ✅ Producto actualizado en {$update_duration}s", 'success');
+                $this->log("Producto actualizado en {$update_duration}s", 'success');
                 return array(
                     'success' => true,
                     'type' => 'updated',
@@ -552,7 +539,7 @@ class Ocellaris_Product_Sync {
                     'sku' => $sku
                 );
             } else {
-                $this->log("  ❌ Error al actualizar producto", 'error');
+                $this->log("❌ Error al actualizar producto", 'error');
                 return array(
                     'success' => false,
                     'type' => 'update',
@@ -573,7 +560,7 @@ class Ocellaris_Product_Sync {
                 update_post_meta($wc_product_id, '_ipos_product_id', $ipos_id);
                 update_post_meta($wc_product_id, '_ipos_variation_id', $variation['ID']);
                 
-                $this->log("  ✅ Producto creado en {$create_duration}s (WC ID: {$wc_product_id})", 'success');
+                $this->log("Producto creado en {$create_duration}s (WC ID: {$wc_product_id})", 'success');
                 return array(
                     'success' => true,
                     'type' => 'created',
@@ -582,7 +569,7 @@ class Ocellaris_Product_Sync {
                     'sku' => $sku
                 );
             } else {
-                $this->log("  ❌ Error al crear producto", 'error');
+                $this->log("❌ Error al crear producto", 'error');
                 return array(
                     'success' => false,
                     'type' => 'create',
@@ -592,12 +579,13 @@ class Ocellaris_Product_Sync {
             }
         }
     }
-    
+
+     
     /**
      * Preparar datos del producto para WooCommerce
      */
     private function prepare_product_data($ipos_product, $variation) {
-        $this->log("    📋 Preparando datos del producto...", 'info');
+        $this->log("Preparando datos del producto...", 'info');
         
         $data = array(
             'name' => sanitize_text_field($ipos_product['Name']),
@@ -621,7 +609,7 @@ class Ocellaris_Product_Sync {
             }
             if (!empty($category_ids)) {
                 $data['categories'] = $category_ids;
-                $this->log("    📁 Categorías asignadas: " . count($category_ids), 'info');
+                $this->log("Categorías asignadas: " . count($category_ids), 'info');
             }
         }
         
@@ -635,7 +623,7 @@ class Ocellaris_Product_Sync {
             }
             if (!empty($images)) {
                 $data['images'] = $images;
-                $this->log("    🖼️ Imágenes encontradas: " . count($images), 'info');
+                $this->log("Imágenes encontradas: " . count($images), 'info');
             }
         }
         
@@ -652,39 +640,37 @@ class Ocellaris_Product_Sync {
             );
         }
         
-        $data['shipping_required'] = isset($ipos_product['RequiresShipping']) && $ipos_product['RequiresShipping'] === 'YES';
-        
+        $data['shipping_required'] = isset($ipos_product['RequiresShipping']) && $ipos_product['RequiresShipping'] === 'YES';        
         if (!empty($ipos_product['Brand'])) {
             $data['meta_data'] = array(
                 array('key' => '_ipos_brand', 'value' => $ipos_product['Brand']),
                 array('key' => '_ipos_provider', 'value' => $ipos_product['Provider'] ?? '')
             );
-        }
-        
+        }        
         return $data;
     }
+
     
     /**
      * Buscar producto en WooCommerce por SKU
      */
     private function get_wc_product_by_sku($sku) {
         global $wpdb;
-        
         $product_id = $wpdb->get_var(
             $wpdb->prepare(
                 "SELECT post_id FROM {$wpdb->postmeta} WHERE meta_key = '_sku' AND meta_value = %s LIMIT 1",
                 $sku
             )
-        );
-        
+        );        
         return $product_id ? (int) $product_id : false;
     }
+
     
     /**
      * Crear producto en WooCommerce
      */
     private function create_wc_product($data) {
-        $this->log("    ➕ Creando nuevo producto en WooCommerce...", 'info');
+        $this->log("Creando nuevo producto en WooCommerce...", 'info');
         
         $post_data = array(
             'post_title'    => $data['name'],
@@ -697,14 +683,12 @@ class Ocellaris_Product_Sync {
         $product_id = wp_insert_post($post_data);
         
         if (is_wp_error($product_id)) {
-            $this->log("    ❌ Error wp_insert_post: " . $product_id->get_error_message(), 'error');
+            $this->log("❌ Error wp_insert_post: " . $product_id->get_error_message(), 'error');
             return false;
         }
         
-        $this->log("    ✅ Post creado (ID: {$product_id})", 'info');
-        
-        wp_set_object_terms($product_id, 'simple', 'product_type');
-        
+        $this->log("Post creado (ID: {$product_id})", 'info');        
+        wp_set_object_terms($product_id, 'simple', 'product_type');        
         update_post_meta($product_id, '_sku', $data['sku']);
         update_post_meta($product_id, '_regular_price', $data['regular_price']);
         update_post_meta($product_id, '_price', $data['regular_price']);
@@ -751,7 +735,7 @@ class Ocellaris_Product_Sync {
      * Actualizar producto en WooCommerce
      */
     private function update_wc_product($product_id, $data) {
-        $this->log("    🔄 Actualizando producto existente (ID: {$product_id})...", 'info');
+        $this->log("Actualizando producto existente (ID: {$product_id})...", 'info');
         
         $post_data = array(
             'ID'           => $product_id,
@@ -763,7 +747,7 @@ class Ocellaris_Product_Sync {
         $result = wp_update_post($post_data);
         
         if (is_wp_error($result)) {
-            $this->log("    ❌ Error wp_update_post: " . $result->get_error_message(), 'error');
+            $this->log("❌ Error wp_update_post: " . $result->get_error_message(), 'error');
             return false;
         }
         
@@ -806,12 +790,13 @@ class Ocellaris_Product_Sync {
         
         return true;
     }
+
     
     /**
      * Adjuntar imágenes al producto (con logging detallado)
      */
     private function attach_product_images($product_id, $images) {
-        $this->log("    🖼️ Procesando " . count($images) . " imágenes...", 'image');
+        $this->log("Procesando " . count($images) . " imágenes...", 'image');
         
         $gallery_ids = array();
         
@@ -821,29 +806,29 @@ class Ocellaris_Product_Sync {
             }
             
             $image_start = microtime(true);
-            $this->log("      ⬇️ Descargando imagen " . ($index + 1) . "...", 'image');
+            $this->log("Descargando imagen " . ($index + 1) . "...", 'image');
             
             $image_id = $this->download_image($image['src'], $product_id);
             
             $image_duration = round(microtime(true) - $image_start, 3);
             
             if ($image_id) {
-                $this->log("      ✅ Imagen descargada en {$image_duration}s (ID: {$image_id})", 'image');
+                $this->log("Imagen descargada en {$image_duration}s (ID: {$image_id})", 'image');
                 
                 if ($index === 0) {
                     set_post_thumbnail($product_id, $image_id);
-                    $this->log("      🎨 Imagen principal asignada", 'image');
+                    $this->log("Imagen principal asignada", 'image');
                 } else {
                     $gallery_ids[] = $image_id;
                 }
             } else {
-                $this->log("      ⚠️ Error descargando imagen en {$image_duration}s", 'warning');
+                $this->log("⚠️ Error descargando imagen en {$image_duration}s", 'warning');
             }
         }
         
         if (!empty($gallery_ids)) {
             update_post_meta($product_id, '_product_image_gallery', implode(',', $gallery_ids));
-            $this->log("    🖼️ Galería configurada con " . count($gallery_ids) . " imágenes", 'image');
+            $this->log("Galería configurada con " . count($gallery_ids) . " imágenes", 'image');
         }
     }
     
@@ -859,7 +844,7 @@ class Ocellaris_Product_Sync {
         ));
         
         if ($existing) {
-            $this->log("        ♻️ Imagen ya existe en media library (ID: {$existing})", 'cache');
+            $this->log("Imagen ya existe en media library (ID: {$existing})", 'cache');
             return (int) $existing;
         }
         
@@ -870,20 +855,20 @@ class Ocellaris_Product_Sync {
         ));
         
         if (is_wp_error($response)) {
-            $this->log("        ❌ Error descargando imagen: " . $response->get_error_message(), 'error');
+            $this->log("❌ Error descargando imagen: " . $response->get_error_message(), 'error');
             return false;
         }
         
         $response_code = wp_remote_retrieve_response_code($response);
         if ($response_code !== 200) {
-            $this->log("        ⚠️ HTTP {$response_code} al descargar imagen", 'warning');
+            $this->log("⚠️ HTTP {$response_code} al descargar imagen", 'warning');
             return false;
         }
         
         $image_data = wp_remote_retrieve_body($response);
         
         if (empty($image_data)) {
-            $this->log("        ⚠️ Imagen vacía", 'warning');
+            $this->log("⚠️ Imagen vacía", 'warning');
             return false;
         }
         
@@ -900,10 +885,10 @@ class Ocellaris_Product_Sync {
         
         // Si el archivo ya existe físicamente, usarlo
         if (file_exists($upload_path)) {
-            $this->log("        ♻️ Archivo físico ya existe: {$filename}", 'cache');
+            $this->log("Archivo físico ya existe: {$filename}", 'cache');
         } else {
             file_put_contents($upload_path, $image_data);
-            $this->log("        💾 Archivo guardado: {$filename}", 'image');
+            $this->log("Archivo guardado: {$filename}", 'image');
         }
         
         // Detectar tipo MIME
@@ -920,21 +905,19 @@ class Ocellaris_Product_Sync {
         $attachment_id = wp_insert_attachment($attachment, $upload_path, $product_id);
         
         if (is_wp_error($attachment_id)) {
-            $this->log("        ❌ Error al insertar attachment: " . $attachment_id->get_error_message(), 'error');
+            $this->log("❌ Error al insertar attachment: " . $attachment_id->get_error_message(), 'error');
             return false;
         }
         
         // Guardar URL de origen para evitar duplicados
-        update_post_meta($attachment_id, '_source_url', $url);
-        
+        update_post_meta($attachment_id, '_source_url', $url);        
         require_once ABSPATH . 'wp-admin/includes/image.php';
         $metadata = wp_generate_attachment_metadata($attachment_id, $upload_path);
-        wp_update_attachment_metadata($attachment_id, $metadata);
-        
-        $this->log("        ✅ Attachment creado (ID: {$attachment_id})", 'success');
-        
+        wp_update_attachment_metadata($attachment_id, $metadata);        
+        $this->log("Attachment creado (ID: {$attachment_id})", 'success');    
         return $attachment_id;
     }
+
     
     /**
      * Obtener ID de categoría de WooCommerce
@@ -961,10 +944,10 @@ class Ocellaris_Product_Sync {
             $term_id = $terms[0]->term_id;
             $this->category_map[$ipos_id] = $term_id;
             return $term_id;
-        }
-        
+        }        
         return false;
     }
+
     
     /**
      * Procesar resultado de sincronización
@@ -996,21 +979,23 @@ class Ocellaris_Product_Sync {
             $this->category_map = $saved_map;
         }
     }
+
     
     /**
      * Cargar mapa de productos
      */
     private function load_product_map() {
-        $saved_map = get_option('ocellaris_ipos_product_map', array());
+        $saved_map = get_option('ipos_sync_product_map', array());
         if (is_array($saved_map)) {
             $this->product_map = $saved_map;
         }
     }
+
     
     /**
      * Guardar mapa de productos
      */
     private function save_product_map() {
-        update_option('ocellaris_ipos_product_map', $this->product_map);
+        update_option('ipos_sync_product_map', $this->product_map);
     }
 }

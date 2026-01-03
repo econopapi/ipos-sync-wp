@@ -427,7 +427,7 @@ class Ocellaris_Stock_Sync {
      * cargar mapa de productos
      */
     private function load_product_map() {
-        $saved_map = get_option('ocellaris_ipos_product_map', array());
+        $saved_map = get_option('ipos_sync_product_map', array());
         if (is_array($saved_map)) {
             $this->product_map = $saved_map;
         }
